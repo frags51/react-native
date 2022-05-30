@@ -56,6 +56,15 @@ static NSInteger RCTImageBytesForImage(UIImage *image)
   return image.images ? image.images.count * singleImageBytes : singleImageBytes;
 }
 
+static NSError* addResponseHeadersToError(NSError* originalError, NSHTTPURLResponse* response) {
+    NSMutableDictionary<NSString*, id>* _userInfo =  (NSMutableDictionary<NSString*, id>*)originalError.userInfo.mutableCopy;
+    _userInfo[@"httpStatusCode"] = [NSNumber numberWithInt:response.statusCode];
+    _userInfo[@"httpResponseHeaders"] = response.allHeaderFields;
+    NSError *error = [NSError errorWithDomain:originalError.domain code:originalError.code userInfo:_userInfo];
+
+    return error;
+}
+
 static uint64_t monotonicTimeGetCurrentNanoseconds(void)
 {
   static struct mach_timebase_info tb_info = {0};
@@ -525,6 +534,10 @@ static UIImage *RCTResizeImageIfNeeded(UIImage *image,
         }
       });
     } else if (!std::atomic_load(cancelled.get())) {
+      if (response && error && [response isKindOfClass: [NSHTTPURLResponse class]]) {
+          NSHTTPURLResponse* _httpResp = (NSHTTPURLResponse*)response;
+          error = addResponseHeadersToError(error, _httpResp);
+      }
       completionBlock(error, imageOrData, imageMetadata, cacheResult, response);
     }
   };
